@@ -2,7 +2,6 @@
   "name": "unicorns-geo-service",
   "version": "1.0.0",
   "description": "Service to update unicorn locations with OpenStreetMap data",
-  "type": "module",
   "main": "api/update-geo.js",
   "scripts": {
     "start": "node api/update-geo.js"
