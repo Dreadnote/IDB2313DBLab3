@@ -1,22 +1,7 @@
 {
   "functions": {
     "api/update-geo.js": {
-      "maxDuration": 30
+      "maxDuration": 10
     }
-  },
-  "headers": [
-    {
-      "source": "/api/(.*)",
-      "headers": [
-        {
-          "key": "Access-Control-Allow-Origin",
-          "value": "*"
-        },
-        {
-          "key": "Access-Control-Allow-Methods",
-          "value": "GET,POST,OPTIONS"
-        }
-      ]
-    }
-  ]
+  }
 }
