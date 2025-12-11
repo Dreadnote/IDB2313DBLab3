@@ -1,14 +1,7 @@
 {
-  "name": "unicorns-geo-service",
+  "name": "idb2313-db-lab3",
   "version": "1.0.0",
-  "description": "Service to update unicorn locations with OpenStreetMap data",
-  "main": "api/update-geo.js",
-  "scripts": {
-    "start": "node api/update-geo.js"
-  },
-  "dependencies": {
-    "axios": "^1.6.0"
-  },
+  "type": "module",
   "engines": {
     "node": "18.x"
   }
