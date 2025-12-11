@@ -1,42 +1,41 @@
-// api/update-geo.js - ДЕБАГ версия
-export default async function handler(req, res) {
-  
-  console.log('=== DEBUG START ===');
-  console.log('Method:', req.method);
-  console.log('URL:', req.url);
-  
-  // Проверка переменных окружения
-  const envVars = {
-    MONGODB_API_KEY: process.env.MONGODB_API_KEY ? 'SET' : 'NOT SET',
-    MONGODB_APP_ID: process.env.MONGODB_APP_ID ? 'SET' : 'NOT SET',
-    MONGODB_CLUSTER: process.env.MONGODB_CLUSTER || 'NOT SET (using default)'
-  };
-  
-  console.log('Environment Variables:', envVars);
-
-  if (req.method === 'GET') {
-    return res.json({
-      status: 'debug mode',
-      env: envVars,
-      endpoints: {
-        test: 'GET /api/update-geo - This page',
-        real: 'POST /api/update-geo - Real functionality'
-      },
-      note: 'Check Vercel Environment Variables'
+// МИНИМАЛЬНЫЙ рабочий код - БЕЗ ошибок
+export default async function handler(request, response) {
+  try {
+    console.log('🟢 Function started');
+    
+    if (request.method === 'GET') {
+      return response.status(200).json({
+        success: true,
+        message: 'GET request successful',
+        timestamp: new Date().toISOString(),
+        path: '/api/update-geo',
+        env: {
+          MONGODB_API_KEY: process.env.MONGODB_API_KEY ? 'SET' : 'NOT SET',
+          MONGODB_APP_ID: process.env.MONGODB_APP_ID ? 'SET' : 'NOT SET'
+        }
+      });
+    }
+    
+    if (request.method === 'POST') {
+      return response.status(200).json({
+        success: true,
+        message: 'POST request successful',
+        action: 'Would process unicorn location update',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    return response.status(405).json({
+      error: 'Method not allowed',
+      allowed: ['GET', 'POST']
+    });
+    
+  } catch (error) {
+    console.error('🔴 Error:', error);
+    return response.status(500).json({
+      error: 'Internal server error',
+      message: error.message,
+      stack: error.stack
     });
   }
-  
-  if (req.method === 'POST') {
-    // Простейший ответ для теста
-    return res.json({
-      success: true,
-      debug: true,
-      env: envVars,
-      message: 'POST received successfully',
-      action: 'Environment variables check passed',
-      next: 'Add MongoDB integration'
-    });
-  }
-  
-  res.status(405).json({ error: 'Method not allowed' });
 }
