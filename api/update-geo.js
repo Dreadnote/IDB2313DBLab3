@@ -1,6 +1,6 @@
-import axios from 'axios';
+const axios = require('axios');
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   
   if (req.method !== 'POST') {
     return res.status(405).json({ 
@@ -15,12 +15,12 @@ export default async function handler(req, res) {
   
   const DATA_API_URL = `https://data.mongodb-api.com/app/${APP_ID}/endpoint/data/v1`;
   
-  console.log('🔄 Начинаю обновление геоданных единорогов...');
+  console.log('🔄 Начинаю определение реального местоположения единорогов...');
 
   try {
     
-    // 1. Ищем единорога без геоданных
-    console.log('🔍 Ищу единорога без координат...');
+    // 1. Ищем единорога С координатами, но БЕЗ real_country
+    console.log('🔍 Ищу единорога с координатами, но без real_country...');
     const findResponse = await axios.post(
       `${DATA_API_URL}/action/findOne`,
       {
@@ -28,8 +28,8 @@ export default async function handler(req, res) {
         database: 'Learn',
         collection: 'unicorns',
         filter: { 
-          location: { $exists: false },
-          name: { $exists: true }
+          "location.coordinates": { $exists: true },
+          "real_country": { $exists: false }
         },
         sort: { _id: 1 }
       },
@@ -44,28 +44,30 @@ export default async function handler(req, res) {
     const unicorn = findResponse.data.document;
     
     if (!unicorn) {
-      console.log('✅ Все единороги уже имеют геоданные');
+      console.log('✅ Все единороги уже имеют реальные местоположения');
       return res.status(200).json({ 
-        message: 'Все единороги уже имеют геоданные',
-        action: 'Добавьте новых единорогов или удалите поле location' 
+        message: 'Все единороги уже имеют реальные местоположения (real_country, real_town)',
+        action: 'Добавьте новых единорогов с координатами' 
       });
     }
 
-    console.log(`🎯 Найден единорог: ${unicorn.name || 'Без имени'} (ID: ${unicorn._id})`);
-
-    // 2. Определяем что искать в OpenStreetMap
-    const searchQuery = unicorn.habitat || unicorn.city || 'forest';
-    console.log(`🗺️  Ищу в OSM: "${searchQuery}"`);
+    console.log(`🎯 Найден единорог: ${unicorn.name || 'Без имени'}`);
+    console.log(`📍 Координаты: ${unicorn.location.coordinates}`);
     
-    // 3. Запрашиваем у OpenStreetMap
+    const [lon, lat] = unicorn.location.coordinates;
+
+    // 2. Reverse geocoding - по координатам получаем адрес
+    console.log(`🗺️  Определяю адрес для координат: ${lon}, ${lat}...`);
+    
     const osmResponse = await axios.get(
-      'https://nominatim.openstreetmap.org/search',
+      'https://nominatim.openstreetmap.org/reverse',
       {
         params: {
-          q: searchQuery,
+          lat: lat,
+          lon: lon,
           format: 'json',
-          limit: 1,
-          countrycodes: 'af' // Афганистан
+          'accept-language': 'en',
+          zoom: 10  // Уровень детализации (город)
         },
         headers: {
           'User-Agent': 'UnicornsGeoService/1.0 (educational-project)'
@@ -74,18 +76,30 @@ export default async function handler(req, res) {
       }
     );
 
-    if (!osmResponse.data || osmResponse.data.length === 0) {
-      console.log('❌ Локация не найдена в OpenStreetMap');
+    if (!osmResponse.data || osmResponse.data.error) {
+      console.log('❌ Адрес не найден для этих координат');
       return res.status(404).json({ 
-        error: 'Локация не найдена',
-        searchQuery: searchQuery,
-        suggestion: 'Попробуйте добавить поле city или habitat единорогу' 
+        error: 'Адрес не найден',
+        coordinates: [lon, lat],
+        suggestion: 'Координаты могут быть в океане или удаленном районе' 
       });
     }
 
-    const location = osmResponse.data[0];
-    console.log(`📍 Найдено: ${location.display_name}`);
-    console.log(`📌 Координаты: ${location.lon}, ${location.lat}`);
+    const address = osmResponse.data.address;
+    const fullAddress = osmResponse.data.display_name;
+    
+    // 3. Извлекаем страну и город
+    let country = address.country || address.state || address.region;
+    let town = address.city || address.town || address.village || address.municipality;
+    
+    // Если город не найден, используем что есть
+    if (!town) {
+      town = address.county || address.state || 'Unknown location';
+    }
+    
+    console.log(`🌍 Страна: ${country}`);
+    console.log(`🏙️  Город: ${town}`);
+    console.log(`📫 Полный адрес: ${fullAddress}`);
 
     // 4. Обновляем единорога в MongoDB
     console.log('💾 Сохраняю в MongoDB...');
@@ -98,16 +112,12 @@ export default async function handler(req, res) {
         filter: { _id: unicorn._id },
         update: {
           $set: {
-            location: {
-              type: 'Point',
-              coordinates: [
-                parseFloat(location.lon),
-                parseFloat(location.lat)
-              ]
-            },
-            address: location.display_name,
-            geoSource: 'OpenStreetMap',
-            geoUpdated: new Date().toISOString()
+            real_country: country,
+            real_town: town,
+            real_address: fullAddress,
+            reverse_geocoded: true,
+            geo_source: 'OpenStreetMap Reverse Geocoding',
+            geo_updated: new Date().toISOString()
           }
         }
       },
@@ -126,16 +136,17 @@ export default async function handler(req, res) {
       
       return res.status(200).json({
         success: true,
-        message: 'Единорог обновлен',
+        message: 'Реальное местоположение определено',
         unicorn: {
           id: unicorn._id,
           name: unicorn.name,
           updated: true
         },
         location: {
-          name: location.display_name,
-          coordinates: [location.lon, location.lat],
-          source: 'OpenStreetMap'
+          coordinates: [lon, lat],
+          country: country,
+          town: town,
+          full_address: fullAddress
         },
         nextStep: 'Отправьте POST запрос еще раз для следующего единорога'
       });
